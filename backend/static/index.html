@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Placement Portal</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body { background: #f4f6f9; }
+    .sidebar {
+      min-height: 100vh;
+      background: #2c3e50;
+      color: white;
+      width: 220px;
+      position: fixed;
+      top: 0; left: 0;
+      padding-top: 20px;
+    }
+    .sidebar .brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding: 0 20px 20px;
+      border-bottom: 1px solid #3d5166;
+    }
+    .sidebar .nav-link {
+      color: #cdd6e0;
+      padding: 10px 20px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active {
+      background: #3d5166;
+      color: white;
+    }
+    .main-content { margin-left: 220px; padding: 30px; }
+    .stat-card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .stat-card .number { font-size: 2rem; font-weight: 700; }
+    .auth-card {
+      max-width: 440px;
+      margin: 80px auto;
+      background: white;
+      border-radius: 10px;
+      padding: 32px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.10);
+    }
+    .table th { background: #f8f9fa; font-weight: 600; font-size: 0.875rem; }
+    .badge-pending    { background: #ffc107; color: #000; }
+    .badge-approved   { background: #198754; color: #fff; }
+    .badge-rejected   { background: #dc3545; color: #fff; }
+    .badge-blacklisted{ background: #343a40; color: #fff; }
+    .badge-closed     { background: #6c757d; color: #fff; }
+    .page-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- AUTH SCREEN -->
+  <div v-if="!loggedIn" class="auth-card">
+    <h4 class="mb-1">Placement Portal</h4>
+    <p class="text-muted small mb-4">IIT Madras BS Programme</p>
+
+    <ul class="nav nav-tabs mb-3">
+      <li class="nav-item">
+        <a class="nav-link" :class="{active: authTab==='login'}"
+           href="#" @click.prevent="authTab='login'; authError=''; authSuccess=''">Login</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" :class="{active: authTab==='register'}"
+           href="#" @click.prevent="authTab='register'; authError=''; authSuccess=''">Register</a>
+      </li>
+    </ul>
+
+    <!-- LOGIN -->
+    <div v-if="authTab==='login'">
+      <div class="mb-3">
+        <label class="form-label">Username</label>
+        <input v-model="loginForm.username" type="text" class="form-control"/>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input v-model="loginForm.password" type="password" class="form-control"
+               @keyup.enter="doLogin"/>
+      </div>
+      <div v-if="authError" class="alert alert-danger py-2">{{ authError }}</div>
+      <button @click="doLogin" class="btn btn-primary w-100" :disabled="loading">
+        <span v-if="loading">Please wait...</span>
+        <span v-else>Login</span>
+      </button>
+      <p class="text-center text-muted small mt-3">
+        No account? <a href="#" @click.prevent="authTab='register'">Register here</a>
+      </p>
+    </div>
+
+    <!-- REGISTER -->
+    <div v-if="authTab==='register'">
+      <div class="mb-2">
+        <label class="form-label">Register as</label>
+        <select v-model="registerForm.role" class="form-select">
+          <option value="student">Student</option>
+          <option value="company">Company</option>
+        </select>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Username</label>
+        <input v-model="registerForm.username" type="text" class="form-control"/>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Email</label>
+        <input v-model="registerForm.email" type="email" class="form-control"/>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Password</label>
+        <input v-model="registerForm.password" type="password" class="form-control"/>
+      </div>
+
+      <div v-if="registerForm.role==='student'">
+        <div class="mb-2">
+          <label class="form-label">Full Name</label>
+          <input v-model="registerForm.full_name" type="text" class="form-control"/>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col">
+            <label class="form-label">Branch</label>
+            <input v-model="registerForm.branch" type="text" class="form-control"/>
+          </div>
+          <div class="col">
+            <label class="form-label">CGPA</label>
+            <input v-model="registerForm.cgpa" type="number" step="0.1" max="10" class="form-control"/>
+          </div>
+          <div class="col">
+            <label class="form-label">Year</label>
+            <input v-model="registerForm.year" type="number" min="1" max="4" class="form-control"/>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="registerForm.role==='company'">
+        <div class="mb-2">
+          <label class="form-label">Company Name</label>
+          <input v-model="registerForm.company_name" type="text" class="form-control"/>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Industry</label>
+          <input v-model="registerForm.industry" type="text" class="form-control"/>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Location</label>
+          <input v-model="registerForm.location" type="text" class="form-control"/>
+        </div>
+      </div>
+
+      <div v-if="authError"   class="alert alert-danger  py-2 mt-2">{{ authError }}</div>
+      <div v-if="authSuccess" class="alert alert-success py-2 mt-2">{{ authSuccess }}</div>
+      <button @click="doRegister" class="btn btn-success w-100 mt-2" :disabled="loading">
+        <span v-if="loading">Please wait...</span>
+        <span v-else>Register</span>
+      </button>
+      <p class="text-center text-muted small mt-3">
+        Have an account? <a href="#" @click.prevent="authTab='login'">Login here</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- MAIN LAYOUT after login -->
+  <div v-if="loggedIn" class="d-flex">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="brand">Placement Portal</div>
+
+      <!-- Admin sidebar -->
+      <div v-if="currentUser.role==='admin'">
+        <button class="nav-link" :class="{active: adminTab==='dashboard'}"
+                @click="adminTab='dashboard'; loadDashboard()">Dashboard</button>
+        <button class="nav-link" :class="{active: adminTab==='companies'}"
+                @click="adminTab='companies'; loadCompanies()">Companies</button>
+        <button class="nav-link" :class="{active: adminTab==='students'}"
+                @click="adminTab='students'; loadStudents()">Students</button>
+        <button class="nav-link" :class="{active: adminTab==='drives'}"
+                @click="adminTab='drives'; loadDrives()">Placement Drives</button>
+        <button class="nav-link" :class="{active: adminTab==='applications'}"
+                @click="adminTab='applications'; loadApplications()">Applications</button>
+      </div>
+
+      <!-- Company sidebar -->
+      <div v-if="currentUser.role==='company'">
+        <button class="nav-link" :class="{active: companyTab==='dashboard'}"
+                @click="companyTab='dashboard'">Dashboard</button>
+        <button class="nav-link" :class="{active: companyTab==='drives'}"
+                @click="companyTab='drives'">My Drives</button>
+        <button class="nav-link" :class="{active: companyTab==='applications'}"
+                @click="companyTab='applications'">Applications</button>
+      </div>
+
+      <!-- Student sidebar -->
+      <div v-if="currentUser.role==='student'">
+        <button class="nav-link" :class="{active: studentTab==='dashboard'}"
+                @click="studentTab='dashboard'">Dashboard</button>
+        <button class="nav-link" :class="{active: studentTab==='drives'}"
+                @click="studentTab='drives'">Browse Drives</button>
+        <button class="nav-link" :class="{active: studentTab==='applications'}"
+                @click="studentTab='applications'">My Applications</button>
+      </div>
+
+      <div style="position:absolute; bottom:20px; width:100%; padding:0 20px;">
+        <div class="text-muted small mb-2">{{ currentUser.username }}</div>
+        <button @click="doLogout" class="btn btn-outline-light btn-sm w-100">Logout</button>
+      </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content w-100">
+
+      <!-- ── ADMIN VIEWS ── -->
+      <div v-if="currentUser.role==='admin'">
+
+        <!-- Admin Dashboard -->
+        <div v-if="adminTab==='dashboard'">
+          <div class="page-title">Dashboard</div>
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <div class="stat-card">
+                <div class="text-muted small">Total Students</div>
+                <div class="number text-primary">{{ stats.total_students || 0 }}</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-card">
+                <div class="text-muted small">Total Companies</div>
+                <div class="number text-success">{{ stats.total_companies || 0 }}</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-card">
+                <div class="text-muted small">Total Drives</div>
+                <div class="number text-warning">{{ stats.total_drives || 0 }}</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="stat-card">
+                <div class="text-muted small">Pending Approvals</div>
+                <div class="number text-danger">{{ stats.pending_companies || 0 }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Companies -->
+        <div v-if="adminTab==='companies'">
+          <div class="page-title">Companies</div>
+          <div class="mb-3">
+            <input v-model="companySearch" @input="loadCompanies"
+                   type="text" class="form-control w-25" placeholder="Search by name..."/>
+          </div>
+          <div class="card">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>ID</th><th>Company</th><th>Industry</th>
+                    <th>Location</th><th>Status</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="c in companies" :key="c.id">
+                    <td>{{ c.id }}</td>
+                    <td>{{ c.company_name }}</td>
+                    <td>{{ c.industry }}</td>
+                    <td>{{ c.location }}</td>
+                    <td>
+                      <span class="badge" :class="'badge-'+c.approval_status">
+                        {{ c.approval_status }}
+                      </span>
+                    </td>
+                    <td>
+                      <button v-if="c.approval_status==='pending'"
+                              @click="updateCompanyStatus(c.id, 'approved')"
+                              class="btn btn-success btn-sm me-1">Approve</button>
+                      <button v-if="c.approval_status==='pending'"
+                              @click="updateCompanyStatus(c.id, 'rejected')"
+                              class="btn btn-danger btn-sm me-1">Reject</button>
+                      <button v-if="c.approval_status!=='blacklisted'"
+                              @click="updateCompanyStatus(c.id, 'blacklisted')"
+                              class="btn btn-dark btn-sm">Blacklist</button>
+                      <button v-if="c.approval_status==='blacklisted'"
+                              @click="updateCompanyStatus(c.id, 'approved')"
+                              class="btn btn-secondary btn-sm">Unblacklist</button>
+                    </td>
+                  </tr>
+                  <tr v-if="companies.length===0">
+                    <td colspan="6" class="text-center text-muted">No companies found</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Students -->
+        <div v-if="adminTab==='students'">
+          <div class="page-title">Students</div>
+          <div class="mb-3">
+            <input v-model="studentSearch" @input="loadStudents"
+                   type="text" class="form-control w-25" placeholder="Search by name..."/>
+          </div>
+          <div class="card">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>ID</th><th>Name</th><th>Branch</th>
+                    <th>CGPA</th><th>Status</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="s in students" :key="s.id">
+                    <td>{{ s.id }}</td>
+                    <td>{{ s.full_name }}</td>
+                    <td>{{ s.branch }}</td>
+                    <td>{{ s.cgpa }}</td>
+                    <td>
+                      <span class="badge"
+                            :class="s.is_blacklisted ? 'badge-blacklisted' : 'badge-approved'">
+                        {{ s.is_blacklisted ? 'Blacklisted' : 'Active' }}
+                      </span>
+                    </td>
+                    <td>
+                      <button v-if="!s.is_blacklisted"
+                              @click="updateStudentStatus(s.id, 'blacklist')"
+                              class="btn btn-dark btn-sm">Blacklist</button>
+                      <button v-else
+                              @click="updateStudentStatus(s.id, 'activate')"
+                              class="btn btn-success btn-sm">Activate</button>
+                    </td>
+                  </tr>
+                  <tr v-if="students.length===0">
+                    <td colspan="6" class="text-center text-muted">No students found</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Drives -->
+        <div v-if="adminTab==='drives'">
+          <div class="page-title">Placement Drives</div>
+          <div class="card">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>ID</th><th>Drive Name</th><th>Company</th>
+                    <th>Job Title</th><th>Deadline</th><th>Status</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="d in drives" :key="d.id">
+                    <td>{{ d.id }}</td>
+                    <td>{{ d.drive_name }}</td>
+                    <td>{{ d.company_name }}</td>
+                    <td>{{ d.job_title }}</td>
+                    <td>{{ d.application_deadline ? d.application_deadline.slice(0,10) : '-' }}</td>
+                    <td>
+                      <span class="badge" :class="'badge-'+d.status">{{ d.status }}</span>
+                    </td>
+                    <td>
+                      <button v-if="d.status==='pending'"
+                              @click="updateDriveStatus(d.id, 'approved')"
+                              class="btn btn-success btn-sm me-1">Approve</button>
+                      <button v-if="d.status==='pending'"
+                              @click="updateDriveStatus(d.id, 'rejected')"
+                              class="btn btn-danger btn-sm me-1">Reject</button>
+                      <button v-if="d.status==='approved'"
+                              @click="updateDriveStatus(d.id, 'closed')"
+                              class="btn btn-secondary btn-sm">Close</button>
+                    </td>
+                  </tr>
+                  <tr v-if="drives.length===0">
+                    <td colspan="7" class="text-center text-muted">No drives found</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Applications -->
+        <div v-if="adminTab==='applications'">
+          <div class="page-title">All Applications</div>
+          <div class="card">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>ID</th><th>Student</th><th>Company</th>
+                    <th>Drive</th><th>Applied On</th><th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="a in applications" :key="a.id">
+                    <td>{{ a.id }}</td>
+                    <td>{{ a.student_name }}</td>
+                    <td>{{ a.company_name }}</td>
+                    <td>{{ a.drive_name }}</td>
+                    <td>{{ a.applied_date.slice(0,10) }}</td>
+                    <td>
+                      <span class="badge" :class="'badge-'+a.status">{{ a.status }}</span>
+                    </td>
+                  </tr>
+                  <tr v-if="applications.length===0">
+                    <td colspan="6" class="text-center text-muted">No applications yet</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- END ADMIN VIEWS -->
+
+      <!-- COMPANY and STUDENT placeholders (built in next milestones) -->
+      <div v-if="currentUser.role==='company'">
+        <div class="page-title">Company Dashboard</div>
+        <div class="card p-4 text-center text-muted">
+          Company dashboard — coming in Milestone 4
+        </div>
+      </div>
+
+      <div v-if="currentUser.role==='student'">
+        <div class="page-title">Student Dashboard</div>
+        <div class="card p-4 text-center text-muted">
+          Student dashboard — coming in Milestone 5
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+<script>
+const API = "http://127.0.0.1:5000/api"
+
+function authHeaders() {
+  const token = localStorage.getItem("token")
+  return {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + token
+  }
+}
+
+Vue.createApp({
+  data() {
+    return {
+      loggedIn:      false,
+      loading:       false,
+      authTab:       "login",
+      authError:     "",
+      authSuccess:   "",
+      currentUser:   {},
+      adminTab:      "dashboard",
+      companyTab:    "dashboard",
+      studentTab:    "dashboard",
+      stats:         {},
+      companies:     [],
+      students:      [],
+      drives:        [],
+      applications:  [],
+      companySearch: "",
+      studentSearch: "",
+      loginForm:     { username: "", password: "" },
+      registerForm:  {
+        role: "student", username: "", email: "", password: "",
+        full_name: "", branch: "", cgpa: "", year: "",
+        company_name: "", industry: "", location: ""
+      }
+    }
+  },
+
+  mounted() {
+    const token = localStorage.getItem("token")
+    const user  = localStorage.getItem("user")
+    if (token && user) {
+      this.currentUser = JSON.parse(user)
+      this.loggedIn    = true
+      if (this.currentUser.role === "admin") this.loadDashboard()
+    }
+  },
+
+  methods: {
+    async doLogin() {
+      this.authError = ""
+      this.loading   = true
+      try {
+        const res  = await fetch(`${API}/auth/login`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify(this.loginForm)
+        })
+        const data = await res.json()
+        if (!res.ok) { this.authError = data.error; return }
+        localStorage.setItem("token", data.access_token)
+        localStorage.setItem("user",  JSON.stringify(data))
+        this.currentUser = data
+        this.loggedIn    = true
+        if (data.role === "admin") this.loadDashboard()
+      } catch(e) {
+        this.authError = "Cannot connect to server. Is Flask running?"
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async doRegister() {
+      this.authError   = ""
+      this.authSuccess = ""
+      this.loading     = true
+      try {
+        const res  = await fetch(`${API}/auth/register`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify(this.registerForm)
+        })
+        const data = await res.json()
+        if (!res.ok) { this.authError = data.error; return }
+        this.authSuccess = data.message + " Please login."
+        this.authTab     = "login"
+      } catch(e) {
+        this.authError = "Cannot connect to server. Is Flask running?"
+      } finally {
+        this.loading = false
+      }
+    },
+
+    doLogout() {
+      localStorage.removeItem("token")
+      localStorage.removeItem("user")
+      this.loggedIn    = false
+      this.currentUser = {}
+      this.loginForm   = { username: "", password: "" }
+    },
+
+    async loadDashboard() {
+      const res  = await fetch(`${API}/admin/dashboard`, { headers: authHeaders() })
+      const data = await res.json()
+      this.stats = data
+    },
+
+    async loadCompanies() {
+      const res      = await fetch(`${API}/admin/companies?search=${this.companySearch}`, { headers: authHeaders() })
+      this.companies = await res.json()
+    },
+
+    async loadStudents() {
+      const res     = await fetch(`${API}/admin/students?search=${this.studentSearch}`, { headers: authHeaders() })
+      this.students = await res.json()
+    },
+
+    async loadDrives() {
+      const res   = await fetch(`${API}/admin/drives`, { headers: authHeaders() })
+      this.drives = await res.json()
+    },
+
+    async loadApplications() {
+      const res          = await fetch(`${API}/admin/applications`, { headers: authHeaders() })
+      this.applications  = await res.json()
+    },
+
+    async updateCompanyStatus(id, status) {
+      await fetch(`${API}/admin/companies/${id}/status`, {
+        method:  "PUT",
+        headers: authHeaders(),
+        body:    JSON.stringify({ status })
+      })
+      this.loadCompanies()
+    },
+
+    async updateStudentStatus(id, action) {
+      await fetch(`${API}/admin/students/${id}/status`, {
+        method:  "PUT",
+        headers: authHeaders(),
+        body:    JSON.stringify({ action })
+      })
+      this.loadStudents()
+    },
+
+    async updateDriveStatus(id, status) {
+      await fetch(`${API}/admin/drives/${id}/status`, {
+        method:  "PUT",
+        headers: authHeaders(),
+        body:    JSON.stringify({ status })
+      })
+      this.loadDrives()
+    }
+  }
+}).mount("#app")
+</script>
+</body>
+</html>
