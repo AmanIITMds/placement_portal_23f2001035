@@ -169,3 +169,17 @@ def dashboard():
         "rejected":      rejected,
         "total_drives":  total_drives
     }), 200
+
+# placement history - selected applications only
+@student_bp.route("/history", methods=["GET"])
+@jwt_required()
+def placement_history():
+    if not student_required():
+        return jsonify({"error": "Student access required"}), 403
+
+    student = get_student_from_token()
+    selected = Application.query.filter_by(
+        student_id=student.id,
+        status="selected"
+    ).all()
+    return jsonify([a.to_dict() for a in selected]), 200

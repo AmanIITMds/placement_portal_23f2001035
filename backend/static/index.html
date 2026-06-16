@@ -212,6 +212,8 @@
                 @click="studentTab='drives'; loadStudentDrives()">Browse Drives</button>
         <button class="nav-link" :class="{active: studentTab==='applications'}"
                 @click="studentTab='applications'; loadStudentApplications()">My Applications</button>
+        <button class="nav-link" :class="{active: studentTab==='history'}"
+                @click="studentTab='history'; loadPlacementHistory()">Placement History</button>
       </div>
 
       <div style="position:absolute; bottom:20px; width:100%; padding:0 20px;">
@@ -859,6 +861,35 @@
           </div>
         </div>
 
+        <!-- Placement History -->
+        <div v-if="studentTab==='history'">
+          <div class="page-title">Placement History</div>
+          <div class="card">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Company</th><th>Drive</th><th>Job Title</th>
+                    <th>Applied On</th><th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="a in placementHistory" :key="a.id">
+                    <td>{{ a.company_name }}</td>
+                    <td>{{ a.drive_name }}</td>
+                    <td>{{ a.job_title }}</td>
+                    <td>{{ a.applied_date.slice(0,10) }}</td>
+                    <td>{{ a.remarks || '-' }}</td>
+                  </tr>
+                  <tr v-if="placementHistory.length===0">
+                    <td colspan="5" class="text-center text-muted">No placement records yet</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
       </div>
       <!-- END STUDENT VIEWS -->
 
@@ -904,6 +935,7 @@ Vue.createApp({
       studentStats:       {},
       studentDrives:      [],
       studentApplications:[],
+      placementHistory: [],
       driveSearch:        "",
       showEditStudentProfile: false,
       editStudentForm: {
@@ -1155,6 +1187,10 @@ Vue.createApp({
         body:    JSON.stringify({ status })
       })
       this.viewDriveApplications(this.selectedDrive)
+    },
+    async loadPlacementHistory() {
+      const res             = await fetch(`${API}/student/history`, { headers: authHeaders() })
+      this.placementHistory = await res.json()
     },
     async saveProfile() {
       const res = await fetch(`${API}/company/profile`, {
