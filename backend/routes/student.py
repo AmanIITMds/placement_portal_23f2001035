@@ -183,3 +183,29 @@ def placement_history():
         status="selected"
     ).all()
     return jsonify([a.to_dict() for a in selected]), 200
+
+# trigger csv export (async job)
+@student_bp.route("/export", methods=["POST"])
+@jwt_required()
+def export_csv():
+    if not student_required():
+        return jsonify({"error": "Student access required"}), 403
+
+    student = get_student_from_token()
+    from tasks.jobs import export_applications_csv
+    task = export_applications_csv.delay(student.id)
+    return jsonify({"message": "Export started", "task_id": task.id}), 202
+
+
+# check export task status
+@student_bp.route("/export/status/<task_id>", methods=["GET"])
+@jwt_required()
+def export_status(task_id):
+    from tasks.jobs import celery
+    task = celery.AsyncResult(task_id)
+    if task.state == "PENDING":
+        return jsonify({"state": task.state, "status": "Task is pending"}), 200
+    elif task.state == "SUCCESS":
+        return jsonify({"state": task.state, "result": task.result}), 200
+    else:
+        return jsonify({"state": task.state}), 200

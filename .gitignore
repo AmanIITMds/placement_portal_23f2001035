@@ -38,3 +38,7 @@ Thumbs.db
 # Environment variables
 .env
 *.env
+
+# Generated reports and exports
+reports/
+backend/uploads/exports/

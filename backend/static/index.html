@@ -831,7 +831,13 @@
 
         <!-- My Applications -->
         <div v-if="studentTab==='applications'">
-          <div class="page-title">My Applications</div>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="page-title mb-0">My Applications</div>
+            <button @click="exportApplications" class="btn btn-outline-primary btn-sm">
+              Export as CSV
+            </button>
+          </div>
+          <div v-if="exportMessage" class="alert alert-info py-2">{{ exportMessage }}</div>
           <div class="card">
             <div class="table-responsive">
               <table class="table table-hover mb-0">
@@ -927,6 +933,7 @@ Vue.createApp({
       students:      [],
       drives:        [],
       applications:  [],
+      exportMessage: "",
       companySearch: "",
       studentSearch: "",
       companyStats:      {},
@@ -1000,7 +1007,27 @@ Vue.createApp({
         this.loading = false
       }
     },
+    async exportApplications() {
+      this.exportMessage = "Export started, please wait..."
+      const res  = await fetch(`${API}/student/export`, {
+        method:  "POST",
+        headers: authHeaders()
+      })
+      const data = await res.json()
+      if (!res.ok) { this.exportMessage = data.error; return }
 
+      const taskId = data.task_id
+      const checkStatus = async () => {
+        const statusRes = await fetch(`${API}/student/export/status/${taskId}`, { headers: authHeaders() })
+        const statusData = await statusRes.json()
+        if (statusData.state === "SUCCESS") {
+          this.exportMessage = `Export completed: ${statusData.result.filename}`
+        } else {
+          setTimeout(checkStatus, 1500)
+        }
+      }
+      checkStatus()
+    },
     async doRegister() {
       this.authError   = ""
       this.authSuccess = ""

@@ -5,7 +5,7 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 class Config:
     SECRET_KEY = "ppa-secret-key-23f2001035"
-    JWT_SECRET_KEY = "ppa-jwt-secret-23f2001035"
+    JWT_SECRET_KEY = "ppa-jwt-secret-23f2001035-secure-key-padding"
 
     SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(BASE_DIR, "instance", "placement.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
