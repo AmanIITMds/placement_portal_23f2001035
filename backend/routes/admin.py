@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt
 from models.models import db, User, Student, Company, PlacementDrive, Application
 
@@ -38,13 +38,22 @@ def get_companies():
     if not admin_required():
         return jsonify({"error": "Admin access required"}), 403
 
-    search = request.args.get("search", "")
-    query  = Company.query
+    search    = request.args.get("search", "")
+    cache_key = f"companies_search_{search}"
+    cache     = current_app.extensions["ppa_cache"]
+
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return jsonify(cached), 200
+
+    query = Company.query
     if search:
         query = query.filter(Company.company_name.ilike(f"%{search}%"))
 
     companies = query.all()
-    return jsonify([c.to_dict() for c in companies]), 200
+    result    = [c.to_dict() for c in companies]
+    cache.set(cache_key, result, timeout=60)
+    return jsonify(result), 200
 
 
 # approve or reject company
@@ -68,6 +77,10 @@ def update_company_status(company_id):
             drive.status = "closed"
 
     db.session.commit()
+
+    cache = current_app.extensions["ppa_cache"]
+    cache.clear()
+
     return jsonify({"message": f"Company status updated to {status}"}), 200
 
 
@@ -78,8 +91,15 @@ def get_students():
     if not admin_required():
         return jsonify({"error": "Admin access required"}), 403
 
-    search = request.args.get("search", "")
-    query  = Student.query
+    search    = request.args.get("search", "")
+    cache_key = f"students_search_{search}"
+    cache     = current_app.extensions["ppa_cache"]
+
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return jsonify(cached), 200
+
+    query = Student.query
     if search:
         query = query.filter(
             (Student.full_name.ilike(f"%{search}%")) |
@@ -87,8 +107,9 @@ def get_students():
         )
 
     students = query.all()
-    return jsonify([s.to_dict() for s in students]), 200
-
+    result   = [s.to_dict() for s in students]
+    cache.set(cache_key, result, timeout=60)
+    return jsonify(result), 200
 
 # blacklist or activate student
 @admin_bp.route("/students/<int:student_id>/status", methods=["PUT"])
@@ -112,6 +133,10 @@ def update_student_status(student_id):
         return jsonify({"error": "Invalid action"}), 400
 
     db.session.commit()
+
+    cache = current_app.extensions["ppa_cache"]
+    cache.clear()
+
     return jsonify({"message": f"Student {action}d successfully"}), 200
 
 
@@ -141,6 +166,10 @@ def update_drive_status(drive_id):
     drive        = PlacementDrive.query.get_or_404(drive_id)
     drive.status = status
     db.session.commit()
+
+    cache = current_app.extensions["ppa_cache"]
+    cache.clear()
+
     return jsonify({"message": f"Drive status updated to {status}"}), 200
 
 

@@ -12,9 +12,14 @@ def create_app():
     os.makedirs(os.path.join(app.root_path, "instance"), exist_ok=True)
     os.makedirs(os.path.join(app.root_path, "uploads"), exist_ok=True)
 
+    from flask_caching import Cache
+    cache = Cache(app)
+
     db.init_app(app)
     JWTManager(app)
     CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+    app.extensions["ppa_cache"] = cache
 
     from routes.auth    import auth_bp
     from routes.admin   import admin_bp

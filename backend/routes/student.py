@@ -1,8 +1,9 @@
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, current_app
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from models.models import db, User, Student, PlacementDrive, Application, Company
 from werkzeug.security import generate_password_hash
 import os
+
 
 student_bp = Blueprint("student", __name__)
 
@@ -57,30 +58,36 @@ def get_drives():
     if not student_required():
         return jsonify({"error": "Student access required"}), 403
 
-    search = request.args.get("search", "")
-    query  = PlacementDrive.query.filter_by(status="approved")
+    search    = request.args.get("search", "")
+    cache_key = f"drives_search_{search}"
+    cache     = current_app.extensions["ppa_cache"]
 
-    if search:
-        query = query.join(Company).filter(
-            (PlacementDrive.job_title.ilike(f"%{search}%")) |
-            (PlacementDrive.drive_name.ilike(f"%{search}%")) |
-            (Company.company_name.ilike(f"%{search}%"))
-        )
+    cached = cache.get(cache_key)
+    if cached is not None:
+        drives_data = cached
+    else:
+        query = PlacementDrive.query.filter_by(status="approved")
+        if search:
+            query = query.join(Company).filter(
+                (PlacementDrive.job_title.ilike(f"%{search}%")) |
+                (PlacementDrive.drive_name.ilike(f"%{search}%")) |
+                (Company.company_name.ilike(f"%{search}%"))
+            )
+        drives = query.all()
+        drives_data = [d.to_dict() for d in drives]
+        cache.set(cache_key, drives_data, timeout=120)
 
-    drives = query.all()
     student = get_student_from_token()
-
-    result = []
-    for drive in drives:
-        d = drive.to_dict()
-        # check if student already applied
+    result  = []
+    for d in drives_data:
+        d_copy = dict(d)
         existing = Application.query.filter_by(
             student_id=student.id,
-            drive_id=drive.id
+            drive_id=d["id"]
         ).first()
-        d["already_applied"] = existing is not None
-        d["application_status"] = existing.status if existing else None
-        result.append(d)
+        d_copy["already_applied"]    = existing is not None
+        d_copy["application_status"] = existing.status if existing else None
+        result.append(d_copy)
 
     return jsonify(result), 200
 
