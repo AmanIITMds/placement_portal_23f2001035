@@ -1,8 +1,3 @@
-"""
-Run this script ONCE after setting up the database.
-It creates the pre-existing admin user.
-Usage: python create_admin.py
-"""
 from app import create_app
 from models.models import db, User, Student, Company
 from werkzeug.security import generate_password_hash

@@ -3,9 +3,8 @@ from datetime import datetime, timezone
 
 db = SQLAlchemy()
 
-# ─────────────────────────────────────────
 # USER  (unified model for all 3 roles)
-# ─────────────────────────────────────────
+
 class User(db.Model):
     __tablename__ = "users"
 
@@ -32,9 +31,8 @@ class User(db.Model):
         }
 
 
-# ─────────────────────────────────────────
 # COMPANY PROFILE
-# ─────────────────────────────────────────
+
 class Company(db.Model):
     __tablename__ = "companies"
 
@@ -70,9 +68,9 @@ class Company(db.Model):
         }
 
 
-# ─────────────────────────────────────────
+
 # STUDENT PROFILE
-# ─────────────────────────────────────────
+
 class Student(db.Model):
     __tablename__ = "students"
 
@@ -112,9 +110,8 @@ class Student(db.Model):
         }
 
 
-# ─────────────────────────────────────────
 # PLACEMENT DRIVE
-# ─────────────────────────────────────────
+
 class PlacementDrive(db.Model):
     __tablename__ = "placement_drives"
 
@@ -159,9 +156,8 @@ class PlacementDrive(db.Model):
         }
 
 
-# ─────────────────────────────────────────
 # APPLICATION
-# ─────────────────────────────────────────
+
 class Application(db.Model):
     __tablename__ = "applications"
 
@@ -172,7 +168,7 @@ class Application(db.Model):
     applied_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     remarks      = db.Column(db.Text)
 
-    # Prevent duplicate applications - one student can apply to a drive only once
+    # Prevent duplicate applications, one student can apply to a drive only once
     __table_args__ = (
         db.UniqueConstraint("student_id", "drive_id", name="unique_student_drive"),
     )
