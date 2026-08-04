@@ -736,6 +736,46 @@
                 <p><strong>Year:</strong> {{ studentStats.student.year || '-' }}</p>
                 <p><strong>Skills:</strong> {{ studentStats.student.skills || '-' }}</p>
                 <p><strong>Phone:</strong> {{ studentStats.student.phone || '-' }}</p>
+                <p>
+                    <strong>Resume:</strong>
+
+                    <span v-if="studentStats.student.resume_path">
+                        Uploaded
+                    </span>
+
+                    <span v-else class="text-danger">
+                        Not Uploaded
+                    </span>
+                </p>
+
+                <div class="mt-3">
+
+                    <input
+    type="file"
+    class="form-control"
+    @change="selectResume"
+>
+
+              <div class="mt-2">
+
+                  <button
+                      class="btn btn-primary btn-sm"
+                      @click="uploadResume"
+                  >
+                      Upload Resume
+                  </button>
+
+                  <button
+                      v-if="studentStats.student.resume_path"
+                      class="btn btn-success btn-sm ms-2"
+                      @click="viewResume"
+                  >
+                      View Resume
+                  </button>
+
+              </div>
+
+                </div>
               </div>
             </div>
 
@@ -944,6 +984,8 @@ Vue.createApp({
       studentApplications:[],
       placementHistory: [],
       driveSearch:        "",
+      selectedResume: null,
+      uploadMessage: "",
       showEditStudentProfile: false,
       editStudentForm: {
         full_name: "", roll_number: "", branch: "", department: "",
@@ -1129,7 +1171,71 @@ Vue.createApp({
       alert(data.message)
       this.loadStudentDrives()
     },
+    selectResume(event) {
+    this.selectedResume = event.target.files[0];
+  
+    },
 
+async uploadResume() {
+
+    if (!this.selectedResume) {
+        alert("Please select a PDF.");
+        return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    const formData = new FormData();
+    formData.append("resume", this.selectedResume);
+
+    const res = await fetch(`${API}/student/resume`, {
+        method: "POST",
+        headers: {
+            Authorization: "Bearer " + token
+        },
+        body: formData
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        alert(data.error);
+        return;
+    }
+
+    alert(data.message);
+
+    this.loadStudentDashboard();
+},
+
+async viewResume() {
+
+    const token = localStorage.getItem("token");
+
+    try {
+
+        const response = await fetch(`${API}/student/resume`, {
+            headers: {
+                Authorization: "Bearer " + token
+            }
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            alert(data.error);
+            return;
+        }
+
+        const blob = await response.blob();
+
+        const url = window.URL.createObjectURL(blob);
+
+        window.open(url, "_blank");
+
+    } catch (err) {
+        alert("Unable to open resume.");
+    }
+},
     async saveStudentProfile() {
       const res  = await fetch(`${API}/student/profile`, {
         method:  "PUT",

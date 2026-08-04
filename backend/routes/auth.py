@@ -93,8 +93,19 @@ def login():
         if company:
             extra["approval_status"] = company.approval_status
             extra["company_id"]      = company.id
-            if company.approval_status == "blacklisted":
-                return jsonify({"error": "Your company has been blacklisted"}), 403
+            if company.approval_status != "approved":
+                messages = {
+                 "pending": "Your company registration is pending admin approval.",
+                 "rejected": "Your company registration has been rejected.",
+                 "blacklisted": "Your company has been blacklisted."
+                }
+
+                return jsonify({
+                    "error": messages.get(
+                        company.approval_status,
+                        "Company account is not approved."
+                    )
+                }), 403
 
     if user.role == "student":
         student = Student.query.filter_by(user_id=user.id).first()

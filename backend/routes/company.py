@@ -167,16 +167,36 @@ def update_application_status(app_id):
     if not company_required():
         return jsonify({"error": "Company access required"}), 403
 
-    data    = request.get_json()
-    status  = data.get("status")
+    company = get_company_from_token()
+    if not company:
+        return jsonify({"error": "Company not found"}), 404
+
+    data = request.get_json()
+    status = data.get("status")
+
     if status not in ["shortlisted", "waiting", "selected", "rejected"]:
         return jsonify({"error": "Invalid status"}), 400
 
     application = Application.query.get_or_404(app_id)
-    application.status  = status
+
+    # SECURITY CHECK:
+    # Verify that the application belongs to a drive owned by this company.
+    if (
+        not application.drive
+        or application.drive.company_id != company.id
+    ):
+        return jsonify({
+            "error": "You are not authorized to update this application."
+        }), 403
+
+    application.status = status
     application.remarks = data.get("remarks", application.remarks)
+
     db.session.commit()
-    return jsonify({"message": f"Application status updated to {status}"}), 200
+
+    return jsonify({
+        "message": f"Application status updated to {status}"
+    }), 200
 
 
 # schedule interview for a drive

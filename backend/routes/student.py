@@ -2,10 +2,23 @@ from flask import Blueprint, request, jsonify, send_from_directory, current_app
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from models.models import db, User, Student, PlacementDrive, Application, Company
 from werkzeug.security import generate_password_hash
+from uuid import uuid4
+
 import os
 
 
 student_bp = Blueprint("student", __name__)
+
+
+ALLOWED_EXTENSIONS = {"pdf", "doc", "docx"}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+def allowed_file(filename):
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+    )
+
 
 def get_student_from_token():
     user_id = get_jwt_identity()
@@ -216,3 +229,86 @@ def export_status(task_id):
         return jsonify({"state": task.state, "result": task.result}), 200
     else:
         return jsonify({"state": task.state}), 200
+
+@student_bp.route("/resume", methods=["POST"])
+@jwt_required()
+def upload_resume():
+    if not student_required():
+        return jsonify({"error": "Student access required"}), 403
+
+    student = get_student_from_token()
+
+    if "resume" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["resume"]
+
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({
+            "error": "Only PDF, DOC and DOCX files are allowed."
+        }), 400
+
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+
+    if size > MAX_FILE_SIZE:
+        return jsonify({
+            "error": "Maximum file size is 5 MB."
+        }), 400
+
+    extension = file.filename.rsplit(".", 1)[1].lower()
+    filename = f"{uuid4()}.{extension}"
+
+    upload_folder = os.path.join(
+        current_app.root_path,
+        "uploads",
+        "resumes"
+    )
+
+    os.makedirs(upload_folder, exist_ok=True)
+
+    # Delete previous resume
+    if student.resume_path:
+        old_path = os.path.join(
+            current_app.root_path,
+            "uploads",
+            "resumes",
+            student.resume_path
+        )
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    save_path = os.path.join(upload_folder, filename)
+    file.save(save_path)
+
+    student.resume_path = filename
+    db.session.commit()
+
+    return jsonify({
+        "message": "Resume uploaded successfully.",
+        "resume_path": student.resume_path
+    }), 200
+
+@student_bp.route("/resume", methods=["GET"])
+@jwt_required()
+def get_resume():
+    if not student_required():
+        return jsonify({"error": "Student access required"}), 403
+
+    student = get_student_from_token()
+
+    if not student.resume_path:
+        return jsonify({"error": "Resume not uploaded"}), 404
+
+    folder = os.path.join(
+        current_app.root_path,
+        "uploads",
+        "resumes"
+    )
+
+    return send_from_directory(folder, student.resume_path)
+    

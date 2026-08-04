@@ -2,8 +2,10 @@ from celery import Celery
 from celery.schedules import crontab
 from datetime import datetime, timedelta
 import csv
-import io
 import os
+import logging
+from flask_mail import Message
+
 
 celery = Celery("placement_portal")
 celery.conf.broker_url = "redis://localhost:6379/0"
@@ -20,43 +22,109 @@ celery.conf.beat_schedule = {
     },
 }
 celery.conf.timezone = "Asia/Kolkata"
-
+logger = logging.getLogger(__name__)
 
 @celery.task(name="tasks.jobs.send_deadline_reminders")
 def send_deadline_reminders():
-    from app import create_app
-    from models.models import db, Student, PlacementDrive, Application
+
+    from app import create_app, mail
+    from models.models import Student, PlacementDrive, Application
 
     app = create_app()
+
     with app.app_context():
+
         tomorrow = datetime.now() + timedelta(days=1)
+
         upcoming_drives = PlacementDrive.query.filter(
             PlacementDrive.status == "approved",
             PlacementDrive.application_deadline <= tomorrow,
             PlacementDrive.application_deadline >= datetime.now()
         ).all()
 
-        reminder_log = []
+        emails_sent = 0
+        emails_failed = 0
+
         for drive in upcoming_drives:
-            students = Student.query.filter_by(is_blacklisted=False).all()
+
+            students = Student.query.filter_by(
+                is_blacklisted=False
+            ).all()
+
             for student in students:
+
                 already_applied = Application.query.filter_by(
-                    student_id=student.id, drive_id=drive.id
+                    student_id=student.id,
+                    drive_id=drive.id
                 ).first()
-                if not already_applied:
-                    message = (
-                        f"Reminder: Deadline for {drive.job_title} at "
-                        f"{drive.company.company_name} is tomorrow."
+
+                if already_applied:
+                    continue
+
+                if not student.user or not student.user.email:
+                    continue
+
+                try:
+
+                    msg = Message(
+
+                        subject=f"Placement Reminder - {drive.job_title}",
+
+                        sender=app.config["MAIL_USERNAME"],
+
+                        recipients=[student.user.email]
+
                     )
-                    reminder_log.append({
-                        "student": student.full_name,
-                        "drive": drive.drive_name,
-                        "message": message
-                    })
 
-        print(f"Sent {len(reminder_log)} reminders")
-        return {"reminders_sent": len(reminder_log)}
+                    msg.body = f"""
+Hello {student.full_name},
 
+This is a reminder that the application deadline for the following placement drive is approaching.
+
+Company:
+{drive.company.company_name}
+
+Drive:
+{drive.drive_name}
+
+Job Title:
+{drive.job_title}
+
+Application Deadline:
+{drive.application_deadline.strftime("%d-%m-%Y %I:%M %p")}
+
+Please login to the Placement Portal and submit your application before the deadline.
+
+Regards,
+Institute Placement Cell
+"""
+
+                    mail.send(msg)
+
+                    emails_sent += 1
+
+                    logger.info(
+                        f"Reminder sent to {student.user.email}"
+                    )
+
+                except Exception as e:
+
+                    emails_failed += 1
+
+                    logger.exception(
+                        f"Failed to send reminder to {student.user.email}: {e}"
+                    )
+
+        logger.info(
+            f"Reminder Job Completed. Sent={emails_sent}, Failed={emails_failed}"
+        )
+
+        return {
+            "emails_sent": emails_sent,
+            "emails_failed": emails_failed
+        }
+
+    
 
 @celery.task(name="tasks.jobs.generate_monthly_report")
 def generate_monthly_report():

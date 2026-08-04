@@ -1,16 +1,25 @@
 from flask import Flask, send_from_directory
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
+from flask_mail import Mail
 from config import Config
 from models.models import db
+
 import os
+
+mail = Mail()
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    mail.init_app(app)  
 
     os.makedirs(os.path.join(app.root_path, "instance"), exist_ok=True)
     os.makedirs(os.path.join(app.root_path, "uploads"), exist_ok=True)
+    os.makedirs(
+    os.path.join(app.root_path, "uploads", "resumes"),
+    exist_ok=True
+)
 
     from flask_caching import Cache
     cache = Cache(app)
@@ -39,6 +48,11 @@ def create_app():
         return send_from_directory(
             os.path.join(app.root_path, "static"), "index.html"
         )
+
+    UPLOAD_FOLDER = "uploads/resumes"
+    app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
     return app
 
