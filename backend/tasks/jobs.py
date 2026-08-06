@@ -128,8 +128,8 @@ Institute Placement Cell
 
 @celery.task(name="tasks.jobs.generate_monthly_report")
 def generate_monthly_report():
-    from app import create_app
-    from models.models import db, Student, Company, PlacementDrive, Application
+    from app import create_app, mail
+    from models.models import User, Student, PlacementDrive, Application
 
     app = create_app()
     with app.app_context():
@@ -159,15 +159,41 @@ def generate_monthly_report():
         report_path = os.path.join(reports_dir, f"report_{datetime.now().strftime('%Y_%m')}.html")
         with open(report_path, "w") as f:
             f.write(html_report)
+        # Find admin user
+        admin = User.query.filter_by(role="admin").first()
 
-        print(f"Monthly report generated at {report_path}")
+        if admin and admin.email:
+
+            try:
+
+                msg = Message(
+                    subject="Monthly Placement Activity Report",
+                    sender=app.config["MAIL_USERNAME"],
+                    recipients=[admin.email]
+                )
+
+                msg.html = html_report
+
+                mail.send(msg)
+
+                logger.info(
+                    f"Monthly report emailed successfully to {admin.email}"
+                )
+
+            except Exception as e:
+
+                logger.exception(
+                    f"Failed to email monthly report: {e}"
+                )
+
+        logger.info(f"Monthly report generated at {report_path}")
         return {"report_path": report_path}
 
 
 @celery.task(name="tasks.jobs.export_applications_csv")
 def export_applications_csv(student_id):
     from app import create_app
-    from models.models import db, Student, Application
+    from models.models import Student, Application
 
     app = create_app()
     with app.app_context():
